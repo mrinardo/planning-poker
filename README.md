@@ -67,25 +67,29 @@ npm run build
 - start: inicia servidor Node em producao (servindo dist/client quando existir).
 - lint: roda ESLint no projeto.
 
-## Deploy no Vercel
+## Deploy no Render
 
-Este projeto e monolitico no servidor, mantendo estado em memoria no processo. Em ambientes serverless, o estado em memoria pode ser reiniciado com frequencia. Para uso pessoal/MVP, isso pode ser aceitavel.
-
-### Opcao recomendada para manter app unica
-
-Configurar o Vercel para buildar frontend + servidor e iniciar o processo Node com `npm run start`.
+Este projeto funciona melhor em plataforma com processo Node persistente, porque usa estado em memoria e Socket.IO em tempo real.
 
 ### Passos
 
-1. Conecte o repositorio no Vercel.
-2. Em Project Settings:
+1. No Render, clique em New + e selecione Web Service.
+2. Conecte o repositorio e selecione este projeto.
+3. Configure o servico:
+- Runtime: Node
 - Build Command: `npm run build`
-- Output Directory: deixe vazio
-- Install Command: `npm install`
+- Start Command: `npm run start`
 - Node version: 22.x
-3. Configure variavel de ambiente (opcional):
-- `PORT=3000`
-4. Deploy.
+4. Em Advanced:
+- Nao defina `PORT` manualmente. O Render injeta `PORT` automaticamente.
+- Configure apenas variaveis extras se precisar no futuro.
+5. Em Instance Type, mantenha 1 instancia para preservar a regra de estado em memoria em processo unico.
+6. Crie o servico e aguarde o deploy.
+7. Acesse a URL publica gerada pelo Render e valide:
+- GET `/api/health` retorna status 200.
+- Home carrega e cria sessao.
+- Compartilhar o link abre a mesma sessao.
+- Votos e revelacao funcionam em tempo real.
 
 ### Comandos locais equivalentes de producao
 

@@ -192,6 +192,8 @@ export function SessionPage(): JSX.Element {
         }))
       );
       setErrorMessage(null);
+      // Consumido somente apos confirmacao: evita perder o seed quando o StrictMode descarta a 1a montagem em dev.
+      sessionStorage.removeItem(`host-join-seed:${sessionId}`);
     });
 
     socket.on("participants-updated", (payload) => {
@@ -287,7 +289,6 @@ export function SessionPage(): JSX.Element {
       name: parsedSeed.hostName,
       ownerToken
     });
-    sessionStorage.removeItem(`host-join-seed:${sessionId}`);
   }, [isHost, ownerToken, participantId, sessionId]);
 
   useEffect(() => {

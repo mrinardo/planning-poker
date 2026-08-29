@@ -12,11 +12,21 @@ body {
   margin: 0;
 }
 
+.app-header {
+  width: min(960px, calc(100% - 2rem));
+  margin: 1.5rem auto 0;
+}
+
 .page {
-  min-height: 100vh;
+  min-height: calc(100vh - 5rem);
   display: grid;
   place-items: center;
-  padding: 2rem;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.page-title {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
 }
 
 .panel {
@@ -27,6 +37,42 @@ body {
   padding: 1.5rem;
   display: grid;
   gap: 1rem;
+}
+
+.brand-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  font-size: clamp(1.5rem, 2vw, 2.1rem);
+  line-height: 1.1;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.9rem;
+  background: linear-gradient(135deg, #facc15, #f97316);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.35);
+  font-size: 1.4rem;
+  transform: rotate(12deg);
+}
+
+.brand-text {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25em;
+}
+
+.brand-flash {
+  color: #f97316;
+  font-weight: 900;
 }
 
 .stack {

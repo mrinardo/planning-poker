@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 type CreateSessionResponse = {
@@ -18,6 +18,10 @@ export function HomePage(): JSX.Element {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = "Flash Planning Poker";
+  }, []);
 
   async function handleCreateSession(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -67,7 +71,6 @@ export function HomePage(): JSX.Element {
   return (
     <main className="page">
       <section className="panel">
-        <h1>Planning Poker</h1>
         <p>Crie uma sessao e compartilhe o link com o time.</p>
         <form className="stack" onSubmit={handleCreateSession}>
           <label htmlFor="session-name">Nome da sessao</label>

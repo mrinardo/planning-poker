@@ -92,6 +92,35 @@ button:disabled {
   grid-template-columns: 1fr auto;
 }
 
+.story-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.story-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.inline-button {
+  padding: 0.35rem 0.75rem;
+}
+
+.story-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.story-link {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
 .participants-list {
   list-style: none;
   padding: 0;
@@ -124,6 +153,31 @@ button:disabled {
 .results-stats {
   display: flex;
   flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.modal-card {
+  width: min(480px, 100%);
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
   gap: 0.75rem;
 }
 

@@ -8,7 +8,8 @@ import {
   removeParticipantOnDisconnect,
   revealVotes,
   SessionServiceError,
-  startNewRound
+  startNewRound,
+  updateStory
 } from "./sessionService";
 import type { Session } from "./types";
 
@@ -16,6 +17,8 @@ type SessionSummary = {
   id: string;
   name: string;
   revealed: boolean;
+  storyName: string;
+  storyLink: string;
   participants: Array<{ id: string; name: string }>;
 };
 
@@ -33,6 +36,11 @@ type VotePayload = {
 type OwnerActionPayload = {
   sessionId: string;
   ownerToken: string;
+};
+
+type StoryPayload = OwnerActionPayload & {
+  storyName: string;
+  storyLink?: string;
 };
 
 type HeartbeatPayload = {
@@ -67,6 +75,14 @@ type VotesRevealedEvent = {
 
 type NewRoundEvent = {
   type: "new-round";
+  storyName: string;
+  storyLink: string;
+};
+
+type StoryUpdatedEvent = {
+  type: "story-updated";
+  storyName: string;
+  storyLink: string;
 };
 
 type SessionClosedEvent = {
@@ -81,7 +97,8 @@ type ClientToServerEvents = {
   "join-session": (payload: JoinSessionPayload) => void;
   vote: (payload: VotePayload) => void;
   "reveal-votes": (payload: OwnerActionPayload) => void;
-  "new-round": (payload: OwnerActionPayload) => void;
+  "new-round": (payload: StoryPayload) => void;
+  "update-story": (payload: StoryPayload) => void;
   "close-session": (payload: OwnerActionPayload) => void;
   heartbeat: (payload: HeartbeatPayload) => void;
 };
@@ -92,6 +109,7 @@ type ServerToClientEvents = {
   "vote-status": (payload: VoteStatusEvent) => void;
   "votes-revealed": (payload: VotesRevealedEvent) => void;
   "new-round": (payload: NewRoundEvent) => void;
+  "story-updated": (payload: StoryUpdatedEvent) => void;
   "session-closed": (payload: SessionClosedEvent) => void;
   "session-error": (payload: ServerErrorEvent) => void;
 };
@@ -252,7 +270,7 @@ export function registerSocketHandlers(io: PokerServer, sessions: Map<string, Se
         return;
       }
 
-      const { sessionId, ownerToken } = payload;
+      const { sessionId, ownerToken, storyName, storyLink } = payload;
       if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
         emitError(socket, "Campo 'sessionId' invalido.");
         return;
@@ -263,10 +281,71 @@ export function registerSocketHandlers(io: PokerServer, sessions: Map<string, Se
         return;
       }
 
+      if (typeof storyName !== "string") {
+        emitError(socket, "Campo 'storyName' deve ser uma string.");
+        return;
+      }
+
+      if (storyLink !== undefined && typeof storyLink !== "string") {
+        emitError(socket, "Campo 'storyLink' deve ser uma string.");
+        return;
+      }
+
       try {
-        startNewRound(sessions, { sessionId, ownerToken });
+        startNewRound(sessions, { sessionId, ownerToken, storyName, storyLink });
+        const session = sessions.get(sessionId);
+        if (session === undefined) {
+          emitError(socket, "Sessao nao encontrada.");
+          return;
+        }
         io.to(sessionId).emit("new-round", {
-          type: "new-round"
+          type: "new-round",
+          storyName: session.storyName,
+          storyLink: session.storyLink
+        });
+      } catch (error: unknown) {
+        handleServiceError(socket, error);
+      }
+    });
+
+    socket.on("update-story", (payload) => {
+      if (!isRecord(payload)) {
+        emitError(socket, "Payload invalido para update-story.");
+        return;
+      }
+
+      const { sessionId, ownerToken, storyName, storyLink } = payload;
+      if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+        emitError(socket, "Campo 'sessionId' invalido.");
+        return;
+      }
+
+      if (typeof ownerToken !== "string" || ownerToken.trim().length === 0) {
+        emitError(socket, "Campo 'ownerToken' invalido.");
+        return;
+      }
+
+      if (typeof storyName !== "string") {
+        emitError(socket, "Campo 'storyName' deve ser uma string.");
+        return;
+      }
+
+      if (storyLink !== undefined && typeof storyLink !== "string") {
+        emitError(socket, "Campo 'storyLink' deve ser uma string.");
+        return;
+      }
+
+      try {
+        updateStory(sessions, { sessionId, ownerToken, storyName, storyLink });
+        const session = sessions.get(sessionId);
+        if (session === undefined) {
+          emitError(socket, "Sessao nao encontrada.");
+          return;
+        }
+        io.to(sessionId).emit("story-updated", {
+          type: "story-updated",
+          storyName: session.storyName,
+          storyLink: session.storyLink
         });
       } catch (error: unknown) {
         handleServiceError(socket, error);

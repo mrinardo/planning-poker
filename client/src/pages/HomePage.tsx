@@ -14,12 +14,21 @@ type HostJoinSeed = {
 
 export function HomePage(): JSX.Element {
   const [sessionName, setSessionName] = useState("");
+  const [hostName, setHostName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
   async function handleCreateSession(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+
+    const nextSessionName = sessionName.trim();
+    const nextHostName = hostName.trim();
+
+    if (nextSessionName.length === 0 || nextHostName.length === 0) {
+      setErrorMessage("Nome da sessao e seu nome sao obrigatorios.");
+      return;
+    }
 
     setErrorMessage(null);
     setIsLoading(true);
@@ -30,7 +39,7 @@ export function HomePage(): JSX.Element {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ name: sessionName })
+        body: JSON.stringify({ name: nextSessionName })
       });
 
       if (!response.ok) {
@@ -44,7 +53,7 @@ export function HomePage(): JSX.Element {
       localStorage.setItem(`host-token:${payload.sessionId}`, payload.ownerToken);
       const hostJoinSeed: HostJoinSeed = {
         sessionId: payload.sessionId,
-        hostName: sessionName.trim()
+        hostName: nextHostName
       };
       sessionStorage.setItem(`host-join-seed:${payload.sessionId}`, JSON.stringify(hostJoinSeed));
       navigate(`${payload.url}?host=1`);
@@ -69,7 +78,17 @@ export function HomePage(): JSX.Element {
             placeholder="Sprint 42"
             maxLength={30}
           />
-          <button type="submit" disabled={isLoading}>
+
+          <label htmlFor="host-name">Seu nome</label>
+          <input
+            id="host-name"
+            value={hostName}
+            onChange={(event) => setHostName(event.target.value)}
+            placeholder="Ana"
+            maxLength={30}
+          />
+
+          <button type="submit" disabled={isLoading || sessionName.trim().length === 0 || hostName.trim().length === 0}>
             {isLoading ? "Criando..." : "Criar sessao"}
           </button>
         </form>

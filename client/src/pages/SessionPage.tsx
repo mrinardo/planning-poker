@@ -13,6 +13,8 @@ type SessionSnapshot = {
   id: string;
   name: string;
   revealed: boolean;
+  storyName: string;
+  storyLink: string;
   participants: Array<{ id: string; name: string }>;
 };
 
@@ -59,12 +61,25 @@ type SessionErrorEvent = {
   message: string;
 };
 
+type NewRoundEvent = {
+  type: "new-round";
+  storyName: string;
+  storyLink: string;
+};
+
+type StoryUpdatedEvent = {
+  type: "story-updated";
+  storyName: string;
+  storyLink: string;
+};
+
 type ServerToClientEvents = {
   "join-session": (payload: JoinSessionEvent) => void;
   "participants-updated": (payload: ParticipantsUpdatedEvent) => void;
   "vote-status": (payload: VoteStatusEvent) => void;
   "votes-revealed": (payload: VotesRevealedEvent) => void;
-  "new-round": () => void;
+  "new-round": (payload: NewRoundEvent) => void;
+  "story-updated": (payload: StoryUpdatedEvent) => void;
   "session-closed": (payload: SessionClosedEvent) => void;
   "session-error": (payload: SessionErrorEvent) => void;
 };
@@ -73,7 +88,8 @@ type ClientToServerEvents = {
   "join-session": (payload: { sessionId: string; name: string }) => void;
   vote: (payload: { sessionId: string; participantId: string; value: VoteValue }) => void;
   "reveal-votes": (payload: { sessionId: string; ownerToken: string }) => void;
-  "new-round": (payload: { sessionId: string; ownerToken: string }) => void;
+  "new-round": (payload: { sessionId: string; ownerToken: string; storyName: string; storyLink?: string }) => void;
+  "update-story": (payload: { sessionId: string; ownerToken: string; storyName: string; storyLink?: string }) => void;
   "close-session": (payload: { sessionId: string; ownerToken: string }) => void;
   heartbeat: (payload: { type: "heartbeat" }) => void;
 };
@@ -92,6 +108,8 @@ export function SessionPage(): JSX.Element {
 
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
   const [sessionName, setSessionName] = useState("Sessao");
+  const [storyName, setStoryName] = useState("");
+  const [storyLink, setStoryLink] = useState("");
   const [participantName, setParticipantName] = useState("");
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [participants, setParticipants] = useState<ParticipantState[]>([]);
@@ -100,6 +118,10 @@ export function SessionPage(): JSX.Element {
   const [votes, setVotes] = useState<Array<{ name: string; value: string }>>([]);
   const [stats, setStats] = useState<RevealStats | null>(null);
   const [isClosed, setIsClosed] = useState(false);
+  const [showStoryModal, setShowStoryModal] = useState(false);
+  const [isEditingStory, setIsEditingStory] = useState(false);
+  const [draftStoryName, setDraftStoryName] = useState("");
+  const [draftStoryLink, setDraftStoryLink] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const shareableUrl = useMemo(() => {
@@ -133,6 +155,8 @@ export function SessionPage(): JSX.Element {
         }
 
         setSessionName(payload.name);
+        setStoryName(payload.storyName ?? "");
+        setStoryLink(payload.storyLink ?? "");
         setIsRevealed(payload.revealed);
         setParticipants(payload.participants.map((participant) => ({ ...participant, hasVoted: false })));
       } catch {
@@ -150,12 +174,14 @@ export function SessionPage(): JSX.Element {
   }, [sessionId]);
 
   useEffect(() => {
-    const socket = io({ autoConnect: true });
+    const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io({ autoConnect: true });
     socketRef.current = socket;
 
     socket.on("join-session", (payload) => {
       setParticipantId(payload.participantId);
       setSessionName(payload.session.name);
+      setStoryName(payload.session.storyName ?? "");
+      setStoryLink(payload.session.storyLink ?? "");
       setIsRevealed(payload.session.revealed);
       setParticipants(
         payload.session.participants.map((participant) => ({
@@ -193,12 +219,19 @@ export function SessionPage(): JSX.Element {
       setIsRevealed(true);
     });
 
-    socket.on("new-round", () => {
+    socket.on("new-round", (payload) => {
       setSelectedVote(null);
       setVotes([]);
       setStats(null);
+      setStoryName(payload.storyName);
+      setStoryLink(payload.storyLink);
       setIsRevealed(false);
       setParticipants((current) => current.map((participant) => ({ ...participant, hasVoted: false, voteValue: undefined })));
+    });
+
+    socket.on("story-updated", (payload) => {
+      setStoryName(payload.storyName);
+      setStoryLink(payload.storyLink);
     });
 
     socket.on("session-closed", () => {
@@ -274,16 +307,17 @@ export function SessionPage(): JSX.Element {
     });
   }
 
-  function handleVote(value: VoteValue): void {
+  function handleVote(value: string): void {
     if (participantId === null || isClosed || isRevealed) {
       return;
     }
 
-    setSelectedVote(value);
+    const voteValue = value as VoteValue;
+    setSelectedVote(voteValue);
     socketRef.current?.emit("vote", {
       sessionId,
       participantId,
-      value
+      value: voteValue
     });
   }
 
@@ -298,15 +332,61 @@ export function SessionPage(): JSX.Element {
     });
   }
 
-  function handleNewRound(): void {
+  function openNewRoundModal(): void {
     if (!isHost || ownerToken.length === 0 || isClosed) {
       return;
     }
 
-    socketRef.current?.emit("new-round", {
-      sessionId,
-      ownerToken
-    });
+    setIsEditingStory(false);
+    setDraftStoryName("");
+    setDraftStoryLink("");
+    setShowStoryModal(true);
+    setErrorMessage(null);
+  }
+
+  function openEditStoryModal(): void {
+    if (!isHost || ownerToken.length === 0 || isClosed) {
+      return;
+    }
+
+    setIsEditingStory(true);
+    setDraftStoryName(storyName);
+    setDraftStoryLink(storyLink);
+    setShowStoryModal(true);
+    setErrorMessage(null);
+  }
+
+  function handleStorySubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    if (!isHost || ownerToken.length === 0 || isClosed) {
+      return;
+    }
+
+    const nextStoryName = draftStoryName.trim();
+    if (nextStoryName.length === 0) {
+      setErrorMessage("Campo 'nome da historia' e obrigatorio.");
+      return;
+    }
+
+    const nextStoryLink = draftStoryLink.trim();
+    if (isEditingStory) {
+      socketRef.current?.emit("update-story", {
+        sessionId,
+        ownerToken,
+        storyName: nextStoryName,
+        storyLink: nextStoryLink
+      });
+    } else {
+      socketRef.current?.emit("new-round", {
+        sessionId,
+        ownerToken,
+        storyName: nextStoryName,
+        storyLink: nextStoryLink
+      });
+    }
+
+    setShowStoryModal(false);
+    setErrorMessage(null);
   }
 
   function handleCloseSession(): void {
@@ -361,6 +441,29 @@ export function SessionPage(): JSX.Element {
           </form>
         ) : null}
 
+        <section className="story-panel">
+          <div className="story-panel-header">
+            <h2>Historia</h2>
+            {isHost ? (
+              <button type="button" className="inline-button" onClick={openEditStoryModal} disabled={isClosed || ownerToken.length === 0}>
+                Editar
+              </button>
+            ) : null}
+          </div>
+          {storyName.length > 0 ? (
+            <>
+              <p className="story-name">{storyName}</p>
+              {storyLink.length > 0 ? (
+                <a href={storyLink} target="_blank" rel="noreferrer" className="story-link">
+                  Abrir link da historia
+                </a>
+              ) : null}
+            </>
+          ) : (
+            <p className="muted-text">Nenhuma historia definida para esta rodada.</p>
+          )}
+        </section>
+
         <ParticipantList participants={participants} revealed={isRevealed} />
 
         <div className="votes-grid">
@@ -379,7 +482,7 @@ export function SessionPage(): JSX.Element {
           <button type="button" onClick={handleRevealVotes} disabled={!isHost || isClosed || ownerToken.length === 0}>
             Revelar votos
           </button>
-          <button type="button" onClick={handleNewRound} disabled={!isHost || isClosed || ownerToken.length === 0}>
+          <button type="button" onClick={openNewRoundModal} disabled={!isHost || isClosed || ownerToken.length === 0}>
             Nova rodada
           </button>
           <button type="button" onClick={handleCloseSession} disabled={!isHost || isClosed || ownerToken.length === 0}>
@@ -387,10 +490,45 @@ export function SessionPage(): JSX.Element {
           </button>
         </div>
 
-        {!isHost ? <p className="muted-text">Somente o host pode revelar, iniciar nova rodada e encerrar a sessao.</p> : null}
         {errorMessage !== null ? <p className="error-text">{errorMessage}</p> : null}
         <ResultsPanel revealed={isRevealed} votes={votes} stats={stats} />
       </section>
+
+      {showStoryModal ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <h2>{isEditingStory ? "Editar historia" : "Nova rodada"}</h2>
+            <form className="stack" onSubmit={handleStorySubmit}>
+              <label htmlFor="story-name">Nome da historia</label>
+              <input
+                id="story-name"
+                value={draftStoryName}
+                onChange={(event) => setDraftStoryName(event.target.value)}
+                placeholder="US-101 - Login"
+                maxLength={120}
+                autoFocus
+              />
+
+              <label htmlFor="story-link">Link da historia (opcional)</label>
+              <input
+                id="story-link"
+                value={draftStoryLink}
+                onChange={(event) => setDraftStoryLink(event.target.value)}
+                placeholder="https://exemplo.com/issue/101"
+              />
+
+              <div className="modal-actions">
+                <button type="button" onClick={() => setShowStoryModal(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={draftStoryName.trim().length === 0}>
+                  {isEditingStory ? "Salvar" : "Iniciar rodada"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -17,7 +17,7 @@ type ResultsPanelProps = {
 
 export function ResultsPanel({ revealed, votes, stats }: ResultsPanelProps): JSX.Element {
   if (!revealed) {
-    return <p>Os resultados aparecem apos a revelacao do host.</p>;
+    return <p></p>;
   }
 
   return (

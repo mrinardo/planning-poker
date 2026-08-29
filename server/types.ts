@@ -5,6 +5,8 @@ export type Session = {
   createdAt: number;
   lastActivityAt: number;
   revealed: boolean;
+  storyName: string;
+  storyLink: string;
   participants: Map<string, Participant>;
   votes: Map<string, Vote>;
 };

@@ -8,6 +8,8 @@ export type SessionPublicView = {
   id: string;
   name: string;
   revealed: boolean;
+  storyName: string;
+  storyLink: string;
   participants: Array<{ id: string; name: string }>;
 };
 
@@ -42,6 +44,21 @@ function normalizeName(name: string, fieldName: string): string {
   return trimmed;
 }
 
+function normalizeStoryName(value: string): string {
+  const trimmed = value.trim().replace(/\s+/g, " ");
+
+  if (trimmed.length === 0) {
+    throw new SessionServiceError("INVALID_INPUT", "Campo 'storyName' e obrigatorio.");
+  }
+
+  return trimmed;
+}
+
+function normalizeStoryLink(value: string): string {
+  const trimmed = value.trim();
+  return trimmed;
+}
+
 function getSessionOrThrow(sessions: Map<string, Session>, sessionId: string): Session {
   const session = sessions.get(sessionId);
   if (session === undefined) {
@@ -56,6 +73,8 @@ export function toPublicSession(session: Session): SessionPublicView {
     id: session.id,
     name: session.name,
     revealed: session.revealed,
+    storyName: session.storyName,
+    storyLink: session.storyLink,
     participants: Array.from(session.participants.values()).map((participant) => ({
       id: participant.id,
       name: participant.name
@@ -76,6 +95,8 @@ export function createSession(sessions: Map<string, Session>, rawName: string): 
     createdAt: now,
     lastActivityAt: now,
     revealed: false,
+    storyName: "",
+    storyLink: "",
     participants: new Map(),
     votes: new Map()
   };
@@ -190,15 +211,35 @@ export function revealVotes(
   return { votes, stats };
 }
 
-export function startNewRound(sessions: Map<string, Session>, input: { sessionId: string; ownerToken: string }): void {
+export function startNewRound(
+  sessions: Map<string, Session>,
+  input: { sessionId: string; ownerToken: string; storyName: string; storyLink?: string }
+): void {
   const session = getSessionOrThrow(sessions, input.sessionId);
 
   if (session.ownerToken !== input.ownerToken) {
     throw new SessionServiceError("FORBIDDEN", "Apenas o host pode iniciar nova rodada.");
   }
 
+  session.storyName = normalizeStoryName(input.storyName);
+  session.storyLink = input.storyLink === undefined ? "" : normalizeStoryLink(input.storyLink);
   session.votes.clear();
   session.revealed = false;
+  session.lastActivityAt = Date.now();
+}
+
+export function updateStory(
+  sessions: Map<string, Session>,
+  input: { sessionId: string; ownerToken: string; storyName: string; storyLink?: string }
+): void {
+  const session = getSessionOrThrow(sessions, input.sessionId);
+
+  if (session.ownerToken !== input.ownerToken) {
+    throw new SessionServiceError("FORBIDDEN", "Apenas o host pode editar a historia.");
+  }
+
+  session.storyName = normalizeStoryName(input.storyName);
+  session.storyLink = input.storyLink === undefined ? "" : normalizeStoryLink(input.storyLink);
   session.lastActivityAt = Date.now();
 }
 

@@ -132,10 +132,29 @@ button:disabled {
 .participant-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 0.75rem;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
+}
+
+.participant-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.host-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #1e3a8a;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
 }
 
 .participant-status {
@@ -150,7 +169,7 @@ button:disabled {
   color: #334155;
 }
 
-.results-stats {
+.participant-stats {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
@@ -193,16 +212,4 @@ button:disabled {
   .session-link-row {
     grid-template-columns: 1fr;
   }
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th,
-td {
-  border: 1px solid #e2e8f0;
-  text-align: left;
-  padding: 0.5rem;
 }

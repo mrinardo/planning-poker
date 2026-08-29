@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useParams, useSearchParams } from "react-router-dom";
 import { ParticipantList } from "../components/ParticipantList";
-import { ResultsPanel } from "../components/ResultsPanel";
 import { VoteCard } from "../components/VoteCard";
 
 const voteValues = ["0", "1", "2", "3", "5", "8", "13", "21", "34", "55", "89", "?", "☕"] as const;
@@ -15,12 +14,13 @@ type SessionSnapshot = {
   revealed: boolean;
   storyName: string;
   storyLink: string;
-  participants: Array<{ id: string; name: string }>;
+  participants: Array<{ id: string; name: string; isHost: boolean }>;
 };
 
 type ParticipantState = {
   id: string;
   name: string;
+  isHost: boolean;
   hasVoted: boolean;
   voteValue?: string;
 };
@@ -38,7 +38,7 @@ type JoinSessionEvent = {
 
 type ParticipantsUpdatedEvent = {
   type: "participants-updated";
-  participants: Array<{ id: string; name: string }>;
+  participants: Array<{ id: string; name: string; isHost: boolean }>;
 };
 
 type VoteStatusEvent = {
@@ -49,7 +49,7 @@ type VoteStatusEvent = {
 
 type VotesRevealedEvent = {
   type: "votes-revealed";
-  votes: Array<{ name: string; value: string }>;
+  votes: Array<{ participantId: string; name: string; value: string }>;
   stats: RevealStats;
 };
 
@@ -85,7 +85,7 @@ type ServerToClientEvents = {
 };
 
 type ClientToServerEvents = {
-  "join-session": (payload: { sessionId: string; name: string }) => void;
+  "join-session": (payload: { sessionId: string; name: string; ownerToken?: string }) => void;
   vote: (payload: { sessionId: string; participantId: string; value: VoteValue }) => void;
   "reveal-votes": (payload: { sessionId: string; ownerToken: string }) => void;
   "new-round": (payload: { sessionId: string; ownerToken: string; storyName: string; storyLink?: string }) => void;
@@ -115,7 +115,6 @@ export function SessionPage(): JSX.Element {
   const [participants, setParticipants] = useState<ParticipantState[]>([]);
   const [isRevealed, setIsRevealed] = useState(false);
   const [selectedVote, setSelectedVote] = useState<VoteValue | null>(null);
-  const [votes, setVotes] = useState<Array<{ name: string; value: string }>>([]);
   const [stats, setStats] = useState<RevealStats | null>(null);
   const [isClosed, setIsClosed] = useState(false);
   const [showStoryModal, setShowStoryModal] = useState(false);
@@ -158,7 +157,7 @@ export function SessionPage(): JSX.Element {
         setStoryName(payload.storyName ?? "");
         setStoryLink(payload.storyLink ?? "");
         setIsRevealed(payload.revealed);
-        setParticipants(payload.participants.map((participant) => ({ ...participant, hasVoted: false })));
+        setParticipants(payload.participants.map((participant) => ({ ...participant, hasVoted: false, voteValue: undefined })));
       } catch {
         if (isMounted) {
           setErrorMessage("Falha ao carregar sessao.");
@@ -187,7 +186,9 @@ export function SessionPage(): JSX.Element {
         payload.session.participants.map((participant) => ({
           id: participant.id,
           name: participant.name,
-          hasVoted: false
+          isHost: participant.isHost,
+          hasVoted: false,
+          voteValue: undefined
         }))
       );
       setErrorMessage(null);
@@ -200,7 +201,9 @@ export function SessionPage(): JSX.Element {
         return payload.participants.map((participant) => ({
           id: participant.id,
           name: participant.name,
-          hasVoted: votedMap.get(participant.id) ?? false
+          isHost: participant.isHost,
+          hasVoted: votedMap.get(participant.id) ?? false,
+          voteValue: current.find((currentParticipant) => currentParticipant.id === participant.id)?.voteValue
         }));
       });
     });
@@ -214,14 +217,20 @@ export function SessionPage(): JSX.Element {
     });
 
     socket.on("votes-revealed", (payload) => {
-      setVotes(payload.votes);
       setStats(payload.stats);
       setIsRevealed(true);
+      const voteMap = new Map(payload.votes.map((vote) => [vote.participantId, vote.value]));
+      setParticipants((current) =>
+        current.map((participant) => ({
+          ...participant,
+          hasVoted: voteMap.has(participant.id),
+          voteValue: voteMap.get(participant.id)
+        }))
+      );
     });
 
     socket.on("new-round", (payload) => {
       setSelectedVote(null);
-      setVotes([]);
       setStats(null);
       setStoryName(payload.storyName);
       setStoryLink(payload.storyLink);
@@ -275,10 +284,11 @@ export function SessionPage(): JSX.Element {
     setParticipantName(parsedSeed.hostName);
     socketRef.current?.emit("join-session", {
       sessionId,
-      name: parsedSeed.hostName
+      name: parsedSeed.hostName,
+      ownerToken
     });
     sessionStorage.removeItem(`host-join-seed:${sessionId}`);
-  }, [isHost, participantId, sessionId]);
+  }, [isHost, ownerToken, participantId, sessionId]);
 
   useEffect(() => {
     if (participantId === null || isClosed) {
@@ -465,6 +475,17 @@ export function SessionPage(): JSX.Element {
         </section>
 
         <ParticipantList participants={participants} revealed={isRevealed} />
+        {isRevealed ? (
+          stats !== null ? (
+            <div className="participant-stats">
+              <span>Media: {stats.average.toFixed(1)}</span>
+              <span>Min: {stats.min}</span>
+              <span>Max: {stats.max}</span>
+            </div>
+          ) : (
+            <p>Sem estatisticas disponiveis.</p>
+          )
+        ) : null}
 
         <div className="votes-grid">
           {voteValues.map((value) => (
@@ -491,7 +512,6 @@ export function SessionPage(): JSX.Element {
         </div>
 
         {errorMessage !== null ? <p className="error-text">{errorMessage}</p> : null}
-        <ResultsPanel revealed={isRevealed} votes={votes} stats={stats} />
       </section>
 
       {showStoryModal ? (

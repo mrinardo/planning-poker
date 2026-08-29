@@ -2,6 +2,7 @@ export type Session = {
   id: string;
   name: string;
   ownerToken: string;
+  hostParticipantId: string | null;
   createdAt: number;
   lastActivityAt: number;
   revealed: boolean;

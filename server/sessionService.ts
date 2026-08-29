@@ -10,7 +10,7 @@ export type SessionPublicView = {
   revealed: boolean;
   storyName: string;
   storyLink: string;
-  participants: Array<{ id: string; name: string }>;
+  participants: Array<{ id: string; name: string; isHost: boolean }>;
 };
 
 export type SessionStats = {
@@ -77,7 +77,8 @@ export function toPublicSession(session: Session): SessionPublicView {
     storyLink: session.storyLink,
     participants: Array.from(session.participants.values()).map((participant) => ({
       id: participant.id,
-      name: participant.name
+      name: participant.name,
+      isHost: session.hostParticipantId === participant.id
     }))
   };
 }
@@ -92,6 +93,7 @@ export function createSession(sessions: Map<string, Session>, rawName: string): 
     id: sessionId,
     name,
     ownerToken,
+    hostParticipantId: null,
     createdAt: now,
     lastActivityAt: now,
     revealed: false,
@@ -117,9 +119,14 @@ export function getSessionPublicView(sessions: Map<string, Session>, sessionId: 
 
 export function joinSession(
   sessions: Map<string, Session>,
-  input: { sessionId: string; name: string; socketId: string }
+  input: { sessionId: string; name: string; socketId: string; ownerToken?: string }
 ): { participantId: string; session: SessionPublicView } {
   const session = getSessionOrThrow(sessions, input.sessionId);
+
+  if (input.ownerToken !== undefined && input.ownerToken !== session.ownerToken) {
+    throw new SessionServiceError("FORBIDDEN", "ownerToken invalido para esta sessao.");
+  }
+
   const normalizedName = normalizeName(input.name, "name");
   const now = Date.now();
   const participantId = randomUUID();
@@ -133,6 +140,9 @@ export function joinSession(
   };
 
   session.participants.set(participantId, participant);
+  if (input.ownerToken === session.ownerToken) {
+    session.hostParticipantId = participantId;
+  }
   session.lastActivityAt = now;
 
   return {
@@ -172,7 +182,7 @@ export function castVote(
 export function revealVotes(
   sessions: Map<string, Session>,
   input: { sessionId: string; ownerToken: string }
-): { votes: Array<{ name: string; value: string }>; stats: SessionStats } {
+): { votes: Array<{ participantId: string; name: string; value: string }>; stats: SessionStats } {
   const session = getSessionOrThrow(sessions, input.sessionId);
 
   if (session.ownerToken !== input.ownerToken) {
@@ -182,11 +192,12 @@ export function revealVotes(
   session.revealed = true;
   session.lastActivityAt = Date.now();
 
-  const votes: Array<{ name: string; value: string }> = [];
+  const votes: Array<{ participantId: string; name: string; value: string }> = [];
   for (const vote of session.votes.values()) {
     const owner = session.participants.get(vote.participantId);
     if (owner !== undefined) {
       votes.push({
+        participantId: vote.participantId,
         name: owner.name,
         value: vote.value
       });
@@ -291,6 +302,9 @@ export function removeParticipantOnDisconnect(
 
   session.participants.delete(input.participantId);
   session.votes.delete(input.participantId);
+  if (session.hostParticipantId === input.participantId) {
+    session.hostParticipantId = null;
+  }
   session.lastActivityAt = Date.now();
 
   return toPublicSession(session);

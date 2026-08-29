@@ -1,6 +1,7 @@
 type ParticipantView = {
   id: string;
   name: string;
+  isHost: boolean;
   hasVoted: boolean;
   voteValue?: string;
 };
@@ -18,14 +19,19 @@ export function ParticipantList({ participants, revealed }: ParticipantListProps
       <ul className="participants-list">
         {participants.map((participant) => {
           const status = revealed
-            ? participant.voteValue ?? (participant.hasVoted ? "votou" : "sem voto")
+            ? participant.voteValue !== undefined
+              ? `votou (${participant.voteValue})`
+              : "sem voto"
             : participant.hasVoted
               ? "votou"
               : "aguardando";
 
           return (
             <li key={participant.id} className="participant-row">
-              <strong>{participant.name}</strong>
+              <span className="participant-name-row">
+                <strong>{participant.name}</strong>
+                {participant.isHost ? <span className="host-badge">host</span> : null}
+              </span>
               <span className={`participant-status ${participant.hasVoted ? "is-voted" : "is-waiting"}`}>{status}</span>
             </li>
           );

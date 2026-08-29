@@ -19,12 +19,13 @@ type SessionSummary = {
   revealed: boolean;
   storyName: string;
   storyLink: string;
-  participants: Array<{ id: string; name: string }>;
+  participants: Array<{ id: string; name: string; isHost: boolean }>;
 };
 
 type JoinSessionPayload = {
   sessionId: string;
   name: string;
+  ownerToken?: string;
 };
 
 type VotePayload = {
@@ -54,7 +55,7 @@ type JoinSessionResponse = {
 
 type ParticipantsUpdatedEvent = {
   type: "participants-updated";
-  participants: Array<{ id: string; name: string }>;
+  participants: Array<{ id: string; name: string; isHost: boolean }>;
 };
 
 type VoteStatusEvent = {
@@ -65,7 +66,7 @@ type VoteStatusEvent = {
 
 type VotesRevealedEvent = {
   type: "votes-revealed";
-  votes: Array<{ name: string; value: string }>;
+  votes: Array<{ participantId: string; name: string; value: string }>;
   stats: {
     average: number;
     min: number;
@@ -162,7 +163,7 @@ export function registerSocketHandlers(io: PokerServer, sessions: Map<string, Se
         return;
       }
 
-      const { sessionId, name } = payload;
+      const { sessionId, name, ownerToken } = payload;
       if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
         emitError(socket, "Campo 'sessionId' invalido.");
         return;
@@ -173,11 +174,17 @@ export function registerSocketHandlers(io: PokerServer, sessions: Map<string, Se
         return;
       }
 
+      if (ownerToken !== undefined && typeof ownerToken !== "string") {
+        emitError(socket, "Campo 'ownerToken' deve ser uma string.");
+        return;
+      }
+
       try {
         const result = joinSession(sessions, {
           sessionId,
           name,
-          socketId: socket.id
+          socketId: socket.id,
+          ownerToken
         });
 
         socket.data.sessionId = result.session.id;
